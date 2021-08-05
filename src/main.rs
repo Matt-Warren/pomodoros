@@ -18,6 +18,11 @@ use tui::{
 use termion::{event::Key, raw::IntoRawMode};
 
 
+const MAX_FOCUS_DURATION: Duration = Duration::from_secs(60*60);
+const MIN_FOCUS_DURATION: Duration = Duration::from_secs(60*10);
+const MAX_BREAK_DURATION: Duration = Duration::from_secs(60*60);
+const MIN_BREAK_DURATION: Duration = Duration::from_secs(60);
+
 enum TimerMode {
     Focus,
     Break,
@@ -30,7 +35,8 @@ struct App {
     ticks_remaining: u64,
     timer_mode: TimerMode,
     running: bool,
-    show_duration: bool,
+    editing_duration: bool,
+    duration: Duration,
 }
 
 impl App {
@@ -42,7 +48,8 @@ impl App {
             ticks_remaining: 0,
             timer_mode: TimerMode::Focus,
             running: false,
-            show_duration: false,
+            editing_duration: false,
+            duration: Duration::from_secs(30),
         }
     }
 
@@ -86,13 +93,18 @@ impl App {
     }
     
     fn set_duration(&mut self) -> () {
-        self.show_duration = true
+        match self.timer_mode {
+            TimerMode::Break => {
+                self.break_time = self.duration;
+            }
+            TimerMode::Focus => {
+                self.focus_time = self.duration;
+            }
+        }
     }
-    
-    fn format_label(&mut self) -> String {
-        let min_left = self.time_remaining.as_secs() / 60;
-        let sec_left = self.time_remaining.as_secs() % 60;
-        return format!("{}:{:0>2} remaining", min_left, sec_left)
+
+    fn edit_duration(&mut self) -> () {
+        self.editing_duration = true;
     }
 
     fn reset_duration(&mut self) -> () {
@@ -102,6 +114,41 @@ impl App {
         };
         self.running = false;
         self.ticks_remaining = self.time_remaining.as_secs() * 5;
+    }
+    fn increase_duration(&mut self) -> () {
+        match self.timer_mode {
+            TimerMode::Break => {
+                if self.duration >= MAX_BREAK_DURATION {
+                    self.duration = MAX_BREAK_DURATION;
+                    return
+                }
+            }
+            TimerMode::Focus => {
+                if self.duration >= MAX_FOCUS_DURATION {
+                    self.duration = MAX_FOCUS_DURATION;
+                    return
+                }
+            }
+        }
+        self.duration = self.duration + Duration::from_secs(60);
+    }
+
+    fn decrease_duration(&mut self) -> () {
+        match self.timer_mode {
+            TimerMode::Break => {
+                if self.duration <= MIN_BREAK_DURATION {
+                    self.duration = MIN_BREAK_DURATION;
+                    return
+                }
+            }
+            TimerMode::Focus => {
+                if self.duration <= MIN_FOCUS_DURATION {
+                    self.duration = MIN_FOCUS_DURATION;
+                    return
+                }
+            }
+        }
+        self.duration = self.duration - Duration::from_secs(60);
     }
 }
 
@@ -130,7 +177,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .split(rect.size());
 
-            let label = app.format_label();
+            let label = format_duration(&app.time_remaining);
             let ratio = app.ratio();
             let timer_guage = Gauge::default()
                 .block(
@@ -149,7 +196,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Style::default()
                         .fg(Color::Red)
                         .bg(Color::Green)
-                        // .add_modifier(Modifier::BOLD)
                 )
                 .gauge_style(
                     Style::default()
@@ -158,8 +204,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 );
             rect.render_widget(timer_guage, chunks[0]);
 
-            if app.show_duration {
-                let duration = draw_duration(&app.time_remaining);
+            if app.editing_duration {
+                let duration = draw_duration(&app.duration, &app.timer_mode);
                 rect.render_widget(duration, chunks[1])
             }
             let text = vec![
@@ -182,14 +228,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         match events.next()? {
             Event::Input(input) => {
+                if app.editing_duration {
+                    if input == Key::Char('s') {
+                        app.set_duration();
+                    }
+                    if input == Key::Char(']') {
+                        app.increase_duration();
+                    }
+                    if input == Key::Char('[') {
+                        app.decrease_duration();
+                    }
+                }
                 if input == Key::Char('q') {
+                    terminal.clear();
                     break;
                 }
                 if input == Key::Char('s') {
                     app.start_timer();
                 }
                 if input == Key::Char('d') {
-                    app.set_duration();
+                    app.edit_duration();
                 }
                 if input == Key::Char('r') {
                     app.reset_duration();
@@ -203,10 +261,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn draw_duration(duration: &Duration) -> LineGauge {
-    let sec = duration.as_secs();
-    let label = format!("{}s", sec);
-    let ratio = sec as f64 / 60.0;
+fn draw_duration<'a>(duration: &'a Duration, mode: &'a TimerMode) -> LineGauge<'a> {
+    let label = format_duration(duration);
+    let divisor = match mode {
+        TimerMode::Break => {
+            MAX_BREAK_DURATION.as_secs() - MIN_BREAK_DURATION.as_secs()
+        }
+        TimerMode::Focus => {
+            MAX_FOCUS_DURATION.as_secs() - MIN_FOCUS_DURATION.as_secs()
+        }
+    } as f64;
+    let ratio = duration.as_secs() as f64 / divisor;
     LineGauge::default()
         .block(
             Block::default()
@@ -223,3 +288,8 @@ fn draw_duration(duration: &Duration) -> LineGauge {
         .ratio(ratio)
 }
 
+fn format_duration(dur: &Duration) -> String {
+    let min_left = dur.as_secs() / 60;
+    let sec_left = dur.as_secs() % 60;
+    return format!("{}:{:0>2} remaining", min_left, sec_left)
+}
