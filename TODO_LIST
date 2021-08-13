@@ -1,0 +1,14 @@
+- Show key binds in rectangle
+- Refactor out UI
+- Save settings
+- Pomo Counter
+- Pause/Resume with spacebar
+
+Known Issues:
+- Switching timer mode while running breaks
+
+
+Completed Ideas:
+- Change from focus->break (and back) automatically
+- Properly set duration (+figure out nice way to set focus vs break times)
+- Refactored out App State

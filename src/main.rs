@@ -1,6 +1,17 @@
 pub mod util;
+pub mod state;
 
-use util::events::{Event, Events};
+use util::events::{
+    Event, 
+    Events,
+};
+use util::utils::format_duration;
+use state::app::{
+    App, 
+    TimerMode,
+    MAX_FOCUS_DURATION,
+    MAX_BREAK_DURATION
+};
 
 use std::{
     error::Error, 
@@ -16,141 +27,6 @@ use tui::{
     Terminal
 };
 use termion::{event::Key, raw::IntoRawMode};
-
-
-const MAX_FOCUS_DURATION: Duration = Duration::from_secs(60*60);
-const MIN_FOCUS_DURATION: Duration = Duration::from_secs(60*10);
-const MAX_BREAK_DURATION: Duration = Duration::from_secs(60*60);
-const MIN_BREAK_DURATION: Duration = Duration::from_secs(60);
-
-enum TimerMode {
-    Focus,
-    Break,
-}
-
-struct App {
-    focus_time: Duration,
-    break_time: Duration,
-    time_remaining: Duration,
-    ticks_remaining: u64,
-    timer_mode: TimerMode,
-    running: bool,
-    editing_duration: bool,
-    duration: Duration,
-}
-
-impl App {
-    fn new() -> App {
-        App {
-            focus_time: Duration::from_secs(60),
-            break_time: Duration::from_secs(5),
-            time_remaining: Duration::from_secs(0),
-            ticks_remaining: 0,
-            timer_mode: TimerMode::Focus,
-            running: false,
-            editing_duration: false,
-            duration: Duration::from_secs(30),
-        }
-    }
-
-    fn update(&mut self) {
-        if self.running {
-            if self.ticks_remaining == 0 {
-                self.ticks_remaining = 0;
-                self.running = false;
-                return
-            }
-            self.ticks_remaining -= 1;
-
-            self.time_remaining = Duration::from_secs(self.ticks_remaining / 5)
-        }
-    }
-
-    fn ratio(&mut self) -> f64 {
-        if self.time_remaining.as_secs() == 0 {
-            return 0.0;
-        }
-        let x;
-        match self.timer_mode {
-            TimerMode::Focus => {
-                if self.focus_time.as_secs() == 0 {
-                    return 0.0
-                }
-                x = (self.ticks_remaining) as f64 / (self.focus_time.as_secs() * 5) as f64;
-            }
-            TimerMode::Break => {
-                if self.break_time.as_secs() == 0 {
-                    return 0.0
-                }
-                x = (self.ticks_remaining) as f64 / (self.break_time.as_secs() * 5) as f64;
-            }
-        }
-        return x;
-    }
-
-    fn start_timer(&mut self) -> () {
-        self.running = true;
-    }
-    
-    fn set_duration(&mut self) -> () {
-        match self.timer_mode {
-            TimerMode::Break => {
-                self.break_time = self.duration;
-            }
-            TimerMode::Focus => {
-                self.focus_time = self.duration;
-            }
-        }
-    }
-
-    fn edit_duration(&mut self) -> () {
-        self.editing_duration = true;
-    }
-
-    fn reset_duration(&mut self) -> () {
-        self.time_remaining = match self.timer_mode {
-            TimerMode::Break => self.break_time,
-            TimerMode::Focus => self.focus_time,
-        };
-        self.running = false;
-        self.ticks_remaining = self.time_remaining.as_secs() * 5;
-    }
-    fn increase_duration(&mut self) -> () {
-        match self.timer_mode {
-            TimerMode::Break => {
-                if self.duration >= MAX_BREAK_DURATION {
-                    self.duration = MAX_BREAK_DURATION;
-                    return
-                }
-            }
-            TimerMode::Focus => {
-                if self.duration >= MAX_FOCUS_DURATION {
-                    self.duration = MAX_FOCUS_DURATION;
-                    return
-                }
-            }
-        }
-        self.duration = self.duration + Duration::from_secs(60);
-    }
-
-    fn decrease_duration(&mut self) -> () {
-        match self.timer_mode {
-            TimerMode::Break => {
-                if self.duration <= MIN_BREAK_DURATION {
-                    self.duration = MIN_BREAK_DURATION;
-                    return
-                }
-            }
-            TimerMode::Focus => {
-                if self.duration <= MIN_FOCUS_DURATION {
-                    self.duration = MIN_FOCUS_DURATION;
-                    return
-                }
-            }
-        }
-        self.duration = self.duration - Duration::from_secs(60);
-    }
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let stdout = io::stdout().into_raw_mode()?;
@@ -177,35 +53,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .split(rect.size());
 
-            let label = format_duration(&app.time_remaining);
-            let ratio = app.ratio();
-            let timer_guage = Gauge::default()
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title("Time Remaining")
-                        .style(
-                            Style::default()
-                                .bg(Color::Black)
-                                .fg(Color::White)
-                        )
-                )
-                .ratio(ratio)
-                .label(label)
-                .style(
-                    Style::default()
-                        .fg(Color::Red)
-                        .bg(Color::Green)
-                )
-                .gauge_style(
-                    Style::default()
-                        .fg(Color::LightGreen) // Full bar color
-                        .bg(Color::Black) // Empty bar color
-                );
+            let timer_guage = draw_timer(&mut app);
             rect.render_widget(timer_guage, chunks[0]);
 
-            if app.editing_duration {
-                let duration = draw_duration(&app.duration, &app.timer_mode);
+            if app.is_editing_duration() {
+                let duration = draw_duration(&app.duration, &app.edit_mode);
                 rect.render_widget(duration, chunks[1])
             }
             let text = vec![
@@ -228,7 +80,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         match events.next()? {
             Event::Input(input) => {
-                if app.editing_duration {
+                if app.is_editing_duration() {
                     if input == Key::Char('s') {
                         app.set_duration();
                     }
@@ -246,11 +98,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 if input == Key::Char('s') {
                     app.start_timer();
                 }
-                if input == Key::Char('d') {
-                    app.edit_duration();
+                if input == Key::Char('b') {
+                    app.edit_duration(TimerMode::Break);
+                }
+                if input == Key::Char('f') {
+                    app.edit_duration(TimerMode::Focus);
                 }
                 if input == Key::Char('r') {
                     app.reset_duration();
+                }
+                if input == Key::Char('x') {
+                    app.switch_timer_mode();
                 }
             }
             Event::Tick => {
@@ -263,24 +121,24 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn draw_duration<'a>(duration: &'a Duration, mode: &'a TimerMode) -> LineGauge<'a> {
     let label = format_duration(duration);
-    let divisor = match mode {
+    let (divisor, color, title) = match mode {
         TimerMode::Break => {
-            MAX_BREAK_DURATION.as_secs() - MIN_BREAK_DURATION.as_secs()
+            (MAX_BREAK_DURATION.as_secs(), Color::Cyan, "Break Duration")
         }
         TimerMode::Focus => {
-            MAX_FOCUS_DURATION.as_secs() - MIN_FOCUS_DURATION.as_secs()
+            (MAX_FOCUS_DURATION.as_secs(), Color::Green, "Focus Duration")
         }
-    } as f64;
-    let ratio = duration.as_secs() as f64 / divisor;
+    };
+    let ratio = duration.as_secs() as f64 / divisor as f64;
     LineGauge::default()
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Duration"),
+                .title(title),
         )
         .gauge_style(
             Style::default()
-                .fg(Color::Cyan)
+                .fg(color)
                 .bg(Color::Black)
                 .add_modifier(Modifier::BOLD),
         )
@@ -288,8 +146,35 @@ fn draw_duration<'a>(duration: &'a Duration, mode: &'a TimerMode) -> LineGauge<'
         .ratio(ratio)
 }
 
-fn format_duration(dur: &Duration) -> String {
-    let min_left = dur.as_secs() / 60;
-    let sec_left = dur.as_secs() % 60;
-    return format!("{}:{:0>2} remaining", min_left, sec_left)
+fn draw_timer<'a>(app: &'a mut App) -> Gauge<'a> {
+    let label = format_duration(&app.time_remaining) + " remaining";
+    let (color, title) = match app.timer_mode {
+        TimerMode::Break => (Color::Blue, "Break Time Remaining"),
+        TimerMode::Focus => (Color::Green, "Focus Time Remaining"),
+    };
+    let ratio = app.ratio();
+    let timer_guage = Gauge::default()
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .style(
+                    Style::default()
+                        .bg(Color::Black)
+                        .fg(Color::White)
+                )
+        )
+        .ratio(ratio)
+        .label(label)
+        .style(
+            Style::default()
+                .fg(Color::Red)
+                .bg(Color::Green)
+        )
+        .gauge_style(
+            Style::default()
+                .fg(color) // Full bar color
+                .bg(Color::Black) // Empty bar color
+        );
+    return timer_guage;
 }
