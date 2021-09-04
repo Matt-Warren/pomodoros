@@ -12,6 +12,12 @@ pub enum TimerMode {
     Break,
 }
 
+#[derive(PartialEq)]
+pub enum KeybindMode {
+    TimerControl,
+    Editing,
+}
+
 pub struct App {
     pub current_max: Duration,
     pub focus_time: Duration,
@@ -20,6 +26,7 @@ pub struct App {
     pub ticks_remaining: u64,
     pub timer_mode: TimerMode,
     pub edit_mode: TimerMode,
+    pub keybind_mode: KeybindMode,
     pub running: bool,
     pub editing_focus: bool,
     pub editing_break: bool,
@@ -36,6 +43,7 @@ impl App {
             ticks_remaining: 0,
             timer_mode: TimerMode::Focus,
             edit_mode: TimerMode::Focus,
+            keybind_mode: KeybindMode::TimerControl,
             running: false,
             editing_break: false,
             editing_focus: false,
@@ -78,6 +86,7 @@ impl App {
         }
         self.editing_break = false;
         self.editing_focus = false;
+        self.keybind_mode = KeybindMode::TimerControl;
         if !self.running && (self.edit_mode == self.timer_mode) {
             self.current_max = self.duration;
         }
@@ -94,6 +103,7 @@ impl App {
                 self.edit_mode = TimerMode::Focus;
             },
         };
+        self.keybind_mode = KeybindMode::Editing;
     }
 
     pub fn reset_duration(&mut self) -> () {

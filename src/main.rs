@@ -9,6 +9,7 @@ use util::utils::format_duration;
 use state::app::{
     App, 
     TimerMode,
+    KeybindMode,
     MAX_FOCUS_DURATION,
     MAX_BREAK_DURATION
 };
@@ -47,7 +48,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     [
                         Constraint::Length(5),
                         Constraint::Length(3),
-                        Constraint::Percentage(80),
+                        Constraint::Percentage(20),
+                        Constraint::Percentage(60),
                         Constraint::Percentage(10),
                     ].as_ref()
                 )
@@ -60,6 +62,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let duration = draw_duration(&app.duration, &app.edit_mode);
                 rect.render_widget(duration, chunks[1])
             }
+            let keybind_help = draw_keybinds(&app.keybind_mode);
+            rect.render_widget(keybind_help, chunks[2]);
+
             let text = vec![
                 Spans::from(Span::raw(format!("Ratio: {}\n", app.ratio()))),
                 Spans::from(Span::raw(format!("Remaining Time: {}\n", app.time_remaining.as_secs()))),
@@ -75,7 +80,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .borders(Borders::ALL)
                 );
 
-            rect.render_widget(paragraph, chunks[2]);
+            rect.render_widget(paragraph, chunks[3]);
         })?;
 
         match events.next()? {
@@ -177,4 +182,23 @@ fn draw_timer<'a>(app: &'a mut App) -> Gauge<'a> {
                 .bg(Color::Black) // Empty bar color
         );
     return timer_guage;
+}
+
+fn draw_keybinds<'a>(keybind_mode: &'a KeybindMode) -> Paragraph<'a> {
+    let keybinds = match keybind_mode {
+        KeybindMode::TimerControl => vec![
+            Spans::from(Span::raw(format!("(s)tart | edit (b)reak | edit (f)ocus | (r)eset | (x)switch mode | (q)uit"))),
+        ],
+        KeybindMode::Editing => vec![
+            Spans::from(Span::raw(format!("([)decrease duration | (])increase duration | (s)ave"))),
+            Spans::from(Span::raw(format!("(s)tart | edit (b)reak | edit (f)ocus | (r)eset | (x)switch mode | (q)uit"))),
+        ],
+    };
+    let paragraph = Paragraph::new(keybinds)
+        .block(
+            Block::default()
+                .title("Hotkeys")
+                .borders(Borders::ALL)
+    );
+    return paragraph
 }
