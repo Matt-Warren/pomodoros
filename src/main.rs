@@ -29,6 +29,12 @@ use tui::{
 };
 use termion::{event::Key, raw::IntoRawMode};
 
+#[derive(PartialEq)]
+pub enum Status {
+    None,
+    Quit,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let stdout = io::stdout().into_raw_mode()?;
     let backend = TermionBackend::new(stdout);
@@ -65,55 +71,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             let keybind_help = draw_keybinds(&app.keybind_mode);
             rect.render_widget(keybind_help, chunks[2]);
 
-            let text = vec![
-                Spans::from(Span::raw(format!("Ratio: {}\n", app.ratio()))),
-                Spans::from(Span::raw(format!("Remaining Time: {}\n", app.time_remaining.as_secs()))),
-                Spans::from(Span::raw(format!("Remaining Ticks: {}\n", app.ticks_remaining))),
-                Spans::from(Span::raw(format!("Focus Time: {}\n", app.focus_time.as_secs()))),
-                Spans::from(Span::raw(format!("Break Time: {}\n", app.break_time.as_secs()))),
-                Spans::from(Span::raw(format!("Running: {}\n", app.running))),
-            ];
-            let paragraph = Paragraph::new(text)
-                .block(
-                    Block::default()
-                        .title("Settings")
-                        .borders(Borders::ALL)
-                );
-
-            rect.render_widget(paragraph, chunks[3]);
+            let debug_window = draw_debug(&app);
+            rect.render_widget(debug_window, chunks[3]);
         })?;
 
         match events.next()? {
             Event::Input(input) => {
-                if app.is_editing_duration() {
-                    if input == Key::Char('s') {
-                        app.set_duration();
-                    }
-                    if input == Key::Char(']') {
-                        app.increase_duration();
-                    }
-                    if input == Key::Char('[') {
-                        app.decrease_duration();
-                    }
-                }
-                if input == Key::Char('q') {
+                let status = handle_inputs(input, &mut app);
+                if status == Status::Quit {
                     terminal.clear();
                     break;
-                }
-                if input == Key::Char('s') {
-                    app.start_timer();
-                }
-                if input == Key::Char('b') {
-                    app.edit_duration(TimerMode::Break);
-                }
-                if input == Key::Char('f') {
-                    app.edit_duration(TimerMode::Focus);
-                }
-                if input == Key::Char('r') {
-                    app.reset_duration();
-                }
-                if input == Key::Char('x') {
-                    app.switch_timer_mode();
                 }
             }
             Event::Tick => {
@@ -122,6 +89,39 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
     Ok(())
+}
+
+fn handle_inputs(input: Key, app: & mut App) -> Status {
+    if app.is_editing_duration() {
+        if input == Key::Char('s') {
+            app.set_duration();
+        }
+        if input == Key::Char(']') {
+            app.increase_duration();
+        }
+        if input == Key::Char('[') {
+            app.decrease_duration();
+        }
+    }
+    if input == Key::Char('q') {
+        return Status::Quit;
+    }
+    if input == Key::Char('s') {
+        app.start_timer();
+    }
+    if input == Key::Char('b') {
+        app.edit_duration(TimerMode::Break);
+    }
+    if input == Key::Char('f') {
+        app.edit_duration(TimerMode::Focus);
+    }
+    if input == Key::Char('r') {
+        app.reset_duration();
+    }
+    if input == Key::Char('x') {
+        app.switch_timer_mode();
+    }
+    return Status::None;
 }
 
 fn draw_duration<'a>(duration: &'a Duration, mode: &'a TimerMode) -> LineGauge<'a> {
@@ -201,4 +201,21 @@ fn draw_keybinds<'a>(keybind_mode: &'a KeybindMode) -> Paragraph<'a> {
                 .borders(Borders::ALL)
     );
     return paragraph
+}
+
+fn draw_debug<'a>(app: &'a App) -> Paragraph<'a> {
+    let text = vec![
+        Spans::from(Span::raw(format!("Ratio: {}\n", app.ratio()))),
+        Spans::from(Span::raw(format!("Remaining Time: {}\n", app.time_remaining.as_secs()))),
+        Spans::from(Span::raw(format!("Remaining Ticks: {}\n", app.ticks_remaining))),
+        Spans::from(Span::raw(format!("Focus Time: {}\n", app.focus_time.as_secs()))),
+        Spans::from(Span::raw(format!("Break Time: {}\n", app.break_time.as_secs()))),
+        Spans::from(Span::raw(format!("Running: {}\n", app.running))),
+    ];
+    return Paragraph::new(text)
+    .block(
+        Block::default()
+            .title("Settings")
+            .borders(Borders::ALL)
+    );
 }

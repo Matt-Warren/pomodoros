@@ -64,7 +64,7 @@ impl App {
         }
     }
 
-    pub fn ratio(&mut self) -> f64 {
+    pub fn ratio(& self) -> f64 {
         if self.time_remaining.as_secs() == 0  || self.current_max.as_secs() == 0 {
             return 0.0;
         }
