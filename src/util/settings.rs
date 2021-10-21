@@ -1,40 +1,47 @@
 use std::fs::File;
-use std::io::prelude::*;
 use std::path::Path;
-use std::{time::Duration};
-use serde_json::{Result, Value};
+use serde_json;
 use serde::{Serialize, Deserialize};
-// looking into https://github.com/sede-json
+use std::io::BufReader;
+// looking into https://github.com/serde-json
 
-pub const SETTINGS_FILE_PATH: &str = "../settings.json";
+pub const SETTINGS_FILE_PATH: &str = "settings.json";
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Settings {
-    focus_time: Duration,
-    break_time: Duration,
+    pub focus_time: u64,
+    pub break_time: u64,
 }
 
-impl Settings {
-    pub fn load() -> Settings {
-        let path = Path::new(SETTINGS_FILE_PATH);
-        let display = path.display();
-        let mut file = match File::open(&path) {
-            Err(why) => panic!("couldn't open {}: {}"),
-            Ok(file) => file,
-        }
+const DEFAULT_SETTINGS : Settings = Settings {
+    focus_time: 5,
+    break_time: 5,
+};
 
-        let mut s = String::new();
-        match file.read_to_string(&mut s) {
-            Err(why) => panic!("couldn't read {}: {}", display, why),
-            Ok(_) => print!("file loaded"),
-        }
-        Settings {
-            focus_time: Duration::from_secs(60),
-            break_time: Duration::from_secs(5),
+impl Settings {
+    pub fn load() -> (Settings, String) {
+        let path = Path::new(SETTINGS_FILE_PATH);
+        let file = match File::open(&path) {
+            Err(why) => {
+                println!("couldn't open file at '{}'\nReason: {}\n using default settings and creating save file", SETTINGS_FILE_PATH, why);
+                panic!("psyche no file created yet.");
+            }
+            Ok(file) => file,
+        };
+
+        let reader = BufReader::new(file);
+        let wrapped_settings : std::result::Result<Settings, serde_json::Error> = serde_json::from_reader(reader);
+        match wrapped_settings.is_err() {
+            true => {
+                return (DEFAULT_SETTINGS, wrapped_settings.unwrap_err().to_string())
+            },
+            false => {
+                return (wrapped_settings.unwrap(), String::new())
+            },
         }
     }
 
-    pub fn save_settings() -> () {
+    pub fn save_settings(new_settings: Settings) -> () {
 
     }
 }

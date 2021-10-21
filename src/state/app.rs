@@ -1,5 +1,7 @@
 use std::{time::Duration};
 
+use crate::util::settings;
+
 pub const FACTOR: u64 = 60;
 pub const MAX_FOCUS_DURATION: Duration = Duration::from_secs(FACTOR*60);
 pub const MIN_FOCUS_DURATION: Duration = Duration::from_secs(FACTOR*10);
@@ -31,14 +33,16 @@ pub struct App {
     pub editing_focus: bool,
     pub editing_break: bool,
     pub duration: Duration,
+    pub messages: Vec<String>,
+    pub stale_messages: bool,
 }
 
 impl App {
-    pub fn new() -> App {
+    pub fn new(settings: settings::Settings) -> App {
         App {
             current_max: Duration::from_secs(60),
-            focus_time: Duration::from_secs(60),
-            break_time: Duration::from_secs(5),
+            focus_time: Duration::from_secs(settings.focus_time),
+            break_time: Duration::from_secs(settings.break_time),
             time_remaining: Duration::from_secs(0),
             ticks_remaining: 0,
             timer_mode: TimerMode::Focus,
@@ -48,6 +52,8 @@ impl App {
             editing_break: false,
             editing_focus: false,
             duration: Duration::from_secs(30),
+            messages: Vec::new(),
+            stale_messages: false,
         }
     }
 
@@ -176,5 +182,10 @@ impl App {
             }
         }
         self.refill_timer();
+    }
+
+    pub fn log(&mut self, message: String) -> () {
+        self.messages.push(message);
+        self.stale_messages = true;
     }
 }

@@ -5,6 +5,7 @@ use util::events::{
     Event, 
     Events,
 };
+use util::settings;
 use util::utils::format_duration;
 use state::app::{
     App, 
@@ -33,6 +34,7 @@ use termion::{event::Key, raw::IntoRawMode};
 pub enum Status {
     None,
     Quit,
+    Debug,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -41,8 +43,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let events = Events::new();
-
-    let mut app = App::new();
+    let (settings, message) = settings::Settings::load();
+    let mut app = App::new(settings);
+    app.log(message);
     
     terminal.clear();
     loop {
@@ -55,7 +58,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         Constraint::Length(5),
                         Constraint::Length(3),
                         Constraint::Percentage(20),
-                        Constraint::Percentage(60),
+                        Constraint::Percentage(20),
+                        Constraint::Percentage(40),
                         Constraint::Percentage(10),
                     ].as_ref()
                 )
@@ -73,6 +77,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let debug_window = draw_debug(&app);
             rect.render_widget(debug_window, chunks[3]);
+            let log_window = draw_logs(&app);
+            rect.render_widget(log_window, chunks[4]);
         })?;
 
         match events.next()? {
@@ -80,6 +86,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let status = handle_inputs(input, &mut app);
                 if status == Status::Quit {
                     terminal.clear();
+                    break;
+                }
+                if status == Status::Debug {
                     break;
                 }
             }
@@ -121,6 +130,9 @@ fn handle_inputs(input: Key, app: & mut App) -> Status {
     if input == Key::Char('x') {
         app.switch_timer_mode();
     }
+    if input == Key::Char('c') {
+        return Status::Debug;
+    }
     return Status::None;
 }
 
@@ -158,7 +170,7 @@ fn draw_timer<'a>(app: &'a mut App) -> Gauge<'a> {
         TimerMode::Focus => (Color::Green, "Focus Time Remaining"),
     };
     let ratio = app.ratio();
-    let timer_guage = Gauge::default()
+    Gauge::default()
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -180,8 +192,7 @@ fn draw_timer<'a>(app: &'a mut App) -> Gauge<'a> {
             Style::default()
                 .fg(color) // Full bar color
                 .bg(Color::Black) // Empty bar color
-        );
-    return timer_guage;
+        )
 }
 
 fn draw_keybinds<'a>(keybind_mode: &'a KeybindMode) -> Paragraph<'a> {
@@ -194,13 +205,12 @@ fn draw_keybinds<'a>(keybind_mode: &'a KeybindMode) -> Paragraph<'a> {
             Spans::from(Span::raw(format!("(s)tart | edit (b)reak | edit (f)ocus | (r)eset | (x)switch mode | (q)uit"))),
         ],
     };
-    let paragraph = Paragraph::new(keybinds)
+    Paragraph::new(keybinds)
         .block(
             Block::default()
                 .title("Hotkeys")
                 .borders(Borders::ALL)
-    );
-    return paragraph
+    )
 }
 
 fn draw_debug<'a>(app: &'a App) -> Paragraph<'a> {
@@ -212,10 +222,24 @@ fn draw_debug<'a>(app: &'a App) -> Paragraph<'a> {
         Spans::from(Span::raw(format!("Break Time: {}\n", app.break_time.as_secs()))),
         Spans::from(Span::raw(format!("Running: {}\n", app.running))),
     ];
-    return Paragraph::new(text)
-    .block(
-        Block::default()
-            .title("Settings")
-            .borders(Borders::ALL)
-    );
+    Paragraph::new(text)
+        .block(
+            Block::default()
+                .title("Settings")
+                .borders(Borders::ALL)
+        )
+}
+
+fn draw_logs<'a>(app: &'a App) -> Paragraph<'a> {
+    let messages = app.messages.iter().rev().take(10);
+    let mut text: Vec<Spans> = Vec::new();
+    for message in messages {
+        text.push(Spans::from(Span::raw(message)));
+    }
+    Paragraph::new(text)
+        .block(
+            Block::default()
+                .title("Messages")
+                .borders(Borders::ALL)
+        )
 }
