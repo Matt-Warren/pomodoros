@@ -133,6 +133,9 @@ fn handle_inputs(input: Key, app: & mut App) -> Status {
     if input == Key::Char('c') {
         return Status::Debug;
     }
+    if input == Key::Char(' ') {
+        app.toggle_running();
+    }
     return Status::None;
 }
 
@@ -196,13 +199,14 @@ fn draw_timer<'a>(app: &'a mut App) -> Gauge<'a> {
 }
 
 fn draw_keybinds<'a>(keybind_mode: &'a KeybindMode) -> Paragraph<'a> {
+    let shared_bindings = Spans::from(Span::raw(format!("(s)tart | edit (b)reak | edit (f)ocus | (r)eset | (x)switch mode | (q)uit")));
     let keybinds = match keybind_mode {
         KeybindMode::TimerControl => vec![
-            Spans::from(Span::raw(format!("(s)tart | edit (b)reak | edit (f)ocus | (r)eset | (x)switch mode | (q)uit"))),
+            shared_bindings,
         ],
         KeybindMode::Editing => vec![
             Spans::from(Span::raw(format!("([)decrease duration | (])increase duration | (s)ave"))),
-            Spans::from(Span::raw(format!("(s)tart | edit (b)reak | edit (f)ocus | (r)eset | (x)switch mode | (q)uit"))),
+            shared_bindings
         ],
     };
     Paragraph::new(keybinds)

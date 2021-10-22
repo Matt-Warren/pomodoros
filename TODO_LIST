@@ -1,20 +1,23 @@
 Tasks:
 - Refactor out UI
-- Save settings
-    - create if not exists
-    - don't crash if can't, just give up?
 - Pomo Counter
-- Pause/Resume with spacebar
 - Add ability to create task list during break time
     - Add ability to view task list during focus time, maybe?
     - Save tasks by pomo counter/by date too
 - Change increment/decrement to by 30s instead of 1m
+- Add color options to setting file
+    - Any other settings that might be nice
 
 Known Issues:
-- Initial settings cause bars to look weird when you start to adjust them
+- NONE!! :) it's flawless
 
 Completed Ideas:
 - Change from focus->break (and back) automatically
 - Properly set duration (+figure out nice way to set focus vs break times)
 - Refactored out App State
 - Show key binds in rectangle by mode
+- Save settings
+    - create if not exists
+    - don't crash if can't, just give up?
+- Pause/Resume with spacebar
+- Initial settings cause bars to look weird when you start to adjust them

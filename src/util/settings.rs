@@ -19,6 +19,13 @@ const DEFAULT_SETTINGS : Settings = Settings {
 };
 
 impl Settings {
+    pub fn new(focus_time: u64, break_time: u64) -> Settings {
+        Settings {
+            focus_time: focus_time,
+            break_time: break_time
+        }
+    }
+
     pub fn load() -> (Settings, String) {
         let path = Path::new(SETTINGS_FILE_PATH);
         let file = match File::open(&path) {
@@ -41,7 +48,9 @@ impl Settings {
         }
     }
 
-    pub fn save_settings(new_settings: Settings) -> () {
-
+    pub fn save_settings(new_settings: Settings) -> std::io::Result<()> {
+        let f = File::create("settings.json")?;
+        serde_json::to_writer_pretty(f,  &new_settings)?;
+        Ok(())
     }
 }

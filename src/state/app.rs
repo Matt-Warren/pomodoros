@@ -34,7 +34,6 @@ pub struct App {
     pub editing_break: bool,
     pub duration: Duration,
     pub messages: Vec<String>,
-    pub stale_messages: bool,
 }
 
 impl App {
@@ -53,7 +52,6 @@ impl App {
             editing_focus: false,
             duration: Duration::from_secs(30),
             messages: Vec::new(),
-            stale_messages: false,
         }
     }
 
@@ -96,6 +94,7 @@ impl App {
         if !self.running && (self.edit_mode == self.timer_mode) {
             self.current_max = self.duration;
         }
+        self.update_settings();
     }
 
     pub fn edit_duration(&mut self, mode: TimerMode) -> () {
@@ -103,10 +102,12 @@ impl App {
             TimerMode::Break => {
                 self.editing_break = true;
                 self.edit_mode = TimerMode::Break;
+                self.duration = self.break_time;
             },
             TimerMode::Focus => {
                 self.editing_focus = true;
                 self.edit_mode = TimerMode::Focus;
+                self.duration = self.focus_time;
             },
         };
         self.keybind_mode = KeybindMode::Editing;
@@ -115,6 +116,10 @@ impl App {
     pub fn reset_duration(&mut self) -> () {
         self.running = false;
         self.refill_timer();
+    }
+
+    pub fn toggle_running(&mut self) -> () {
+        self.running = !self.running;
     }
 
     pub fn refill_timer(&mut self) -> () {
@@ -184,8 +189,19 @@ impl App {
         self.refill_timer();
     }
 
+    fn update_settings(&mut self) -> () {
+        let settings = settings::Settings::new(
+            self.focus_time.as_secs(), 
+            self.break_time.as_secs()
+        );
+        match settings::Settings::save_settings(settings) {
+            Ok(()) => return,
+            Err(err) => self.log(err.to_string())
+        }
+        
+    }
+
     pub fn log(&mut self, message: String) -> () {
         self.messages.push(message);
-        self.stale_messages = true;
     }
 }
